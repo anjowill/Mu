@@ -1,209 +1,178 @@
 # CLAUDE.md
 
-# Project: Weekly Intelligence Pipeline
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 1) Project goal
+## Project
 
-Build a weekly content-intelligence system that transforms source data into:
-1. structured analysis,
-2. Excel-ready outputs across multiple sheets,
-3. blog drafts,
-4. optional explainer-video scripts.
+Spice Route Intelligence — a weekly content-intelligence pipeline that ingests startup funding CSVs, runs multi-agent analysis across 6 analytical dimensions, produces an Excel workbook, blog drafts, and a video script. A FastAPI + Streamlit web layer wraps the CLI pipeline.
 
-The current phase is manual data input + automated analysis/content generation.
-The future phase will add web extraction and scheduled ingestion.
+---
 
-## 2) Current scope
+## Running the system
 
-### In scope now
-- Accept weekly source data manually from the user
-- Parse and normalize the data into a structured internal format
-- Run multiple analysis modules that correspond to the Excel sheets
-- Produce outputs suitable for:
-  - Excel workbook generation
-  - blog topic selection
-  - blog drafting
-  - video script drafting
+### CLI (primary interface)
 
-### Out of scope for now
-- Web scraping
-- Automated scheduling
-- API-based live ingestion
-- Publishing to CMS
-- Direct video rendering
+```bash
+# Full run
+python main.py --input data.csv --date 2026-04-03
 
-Do not implement future-phase automation unless explicitly asked.
+# Interactive mode — pauses after briefing for topic review
+python main.py --input data.csv --date 2026-04-03 --interactive
 
-## 3) Core operating principles
+# Resume a partially completed batch
+python main.py --date 2026-04-03 --resume
 
-- Never invent facts that are not in the provided source data.
-- Distinguish clearly between:
-  - raw source facts,
-  - derived insights,
-  - editorial interpretation,
-  - recommendations.
-- Prefer deterministic structured output over free-form prose.
-- When information is ambiguous, ask for clarification instead of guessing.
-- Preserve traceability from source data to analysis output.
-- Keep the system modular so each sheet/analysis step can be changed independently.
+# Re-export only (no API calls)
+python main.py --date 2026-04-03 --export-only
 
-## 4) Product workflow
+# Run specific sheets only
+python main.py --input data.csv --date 2026-04-03 --sheets 1 3 5
 
-The pipeline is:
+# Paste CSV from stdin
+python main.py --paste --date 2026-04-03
 
-1. Receive weekly input data
-2. Normalize the data
-3. Run sheet-level analyses
-4. Aggregate findings across sheets
-5. Rank candidate blog topics
-6. Draft blog outline
-7. Draft blog article
-8. Draft explainer-video script if requested
+# Override model
+python main.py --input data.csv --date 2026-04-03 --model claude-sonnet-4-6
+```
 
-## 5) Data contract
+### Web interface (two terminals required)
 
-### Input
-The user will provide weekly source data manually.
-Treat that input as the only source of truth for the current run.
+```bash
+# Terminal 1 — FastAPI backend
+uvicorn app.api:app --reload --port 8000
 
-### Internal format
-Use structured objects, tables, or JSON-like schemas internally.
-Prefer explicit fields such as:
-- title
-- date
-- company
-- category
-- metric
-- source
-- note
-- confidence
-- tags
+# Terminal 2 — Streamlit UI
+streamlit run app/ui.py
+```
 
-### Output expectations
-Outputs should be reproducible and machine-readable where possible.
+UI is at `http://localhost:8501`. API at `http://localhost:8000`.
 
-## 6) Excel workbook rules
+### Environment
 
-The workbook has multiple sheets, each with a dedicated prompt and purpose.
-Do not collapse everything into one sheet.
+Copy `.env.example` → `.env` in the project root and set:
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
-For each sheet:
-- preserve the sheet’s unique objective,
-- generate only the content relevant to that sheet,
-- keep output clean and structured,
-- avoid mixing commentary with data unless the sheet requires it.
+Both `main.py` and `app/services/pipeline_runner.py` load `.env` from `Path(__file__).parent / ".env"` at module load time.
 
-If a sheet prompt is missing, request it before generating final sheet content.
+---
 
-## 7) Blog-generation rules
+## Architecture
 
-When selecting topics for the blog:
-- prioritize novelty,
-- prioritize business relevance,
-- prioritize evidence strength,
-- avoid weak or speculative themes.
+### Pipeline execution order
 
-The blog should:
-- be fact-based,
-- be readable for a general professional audience,
-- use clear headings,
-- tie every major claim back to the analysis.
+```
+CSV / paste
+  → Parser (RawBatch)
+  → Normalizer (NormalizedBatch)          ← saved: normalized_batch.json
+  → Sheet1Agent                           ← saved: sheets/sheet_1_output.json
+  → Sheet2–4Agent (depend on Sheet 1)     ← saved: sheets/sheet_N_output.json
+  → Sheet5–6Agent (depend on normalized)  ← saved: sheets/sheet_N_output.json
+  → AggregatorAgent (pure Python)         ← saved: aggregated_insights.json
+  → BriefingAgent (Claude call)           ← saved: briefs/topic_candidates.json
+  → [Interactive gate / auto-select]      ← saved: briefs/selected_briefs.json
+  → BlogAgent × N + VideoScriptAgent      ← saved: content_bundle.json
+  → ExcelExporter + MarkdownExporter      ← outputs: workbook + content/*.md
+```
 
-Do not overstate certainty.
+**Orchestrator** (`pipeline/orchestrator.py`) checks for existing checkpoint files before each stage — `--resume` skips stages whose output already exists on disk.
 
-## 8) Video-script rules
+**StateManager** (`pipeline/state_manager.py`) owns all file I/O. Never write output files directly; use `state_manager.save_*` / `state_manager.load_*` methods. Key path: `output/weekly_batch_YYYY_MM_DD/`.
 
-Video output is optional and should be created only when requested.
-When generating a video script:
-- create a concise hook,
-- define the core message,
-- break the script into scenes or beats,
-- keep language simple and explanatory,
-- separate narration from visual suggestions.
+### Agent pattern
 
-## 9) Quality standards
+All agents extend `BaseAgent` (`agents/base_agent.py`):
+- Constructor: `(client: anthropic.Anthropic, model: str, prompt_path: Path, temperature: float, max_tokens: int)`
+- `_call_claude(user_message)` → `(response_text, usage_dict)` with 3× exponential-backoff retry
+- Raw LLM response is always preserved in `SheetOutput.raw_llm_response` — enables re-parsing without API calls
+- Subclasses implement `run(*args) -> <typed schema>`
 
-Before finishing any task, verify:
-- the output uses only the provided input,
-- the output matches the requested format,
-- the logic is consistent across sheets,
-- no contradictions exist between analysis and blog conclusions,
-- terminology is used consistently.
+**Temperatures:**
+- Sheet agents: `0.0` (deterministic)
+- BriefingAgent: `0.3`
+- Blog/Video agents: `0.7`
 
-## 10) Coding standards
+### Web layer
 
-- Prefer small, testable modules.
-- Keep transformation logic separate from rendering logic.
-- Use typed schemas where practical.
-- Add validation for required fields.
-- Make outputs easy to inspect and debug.
-- Write code that is easy to extend from manual input to web ingestion later.
+`app/services/pipeline_runner.py` is the **only** integration point between FastAPI and the pipeline. It calls `parse_csv()` + `PipelineOrchestrator.run()` and returns a path dict. FastAPI offloads it via `asyncio.to_thread()`.
 
-## 11) Preferred architecture
+Streamlit (`app/ui.py`) reads output files directly from the filesystem (same machine as API) rather than routing through `/files/` endpoint.
 
-Build the system in layers:
+---
 
-### Layer 1: Input ingestion
-Accept weekly data and prompts.
+## Configuration (`config.py`)
 
-### Layer 2: Normalization
-Convert source data into a structured canonical format.
+| Constant | Value |
+|----------|-------|
+| `DEFAULT_MODEL` | `"claude-opus-4-6"` |
+| `OUTPUT_DIR` | `<root>/output/` |
+| `PROMPTS_DIR` | `<root>/prompts/` |
+| `MAX_TOKENS_SHEET` | `8192` |
+| `MAX_TOKENS_BLOG` | `4096` |
+| `MAX_RETRIES` | `3` |
 
-### Layer 3: Sheet analyzers
-One analyzer per sheet or analytical dimension.
+Capital quality tiers, sector priority tiers, stage/sector normalization maps, and ticket size buckets are all defined in `config.py` — edit there, not in agent code.
 
-### Layer 4: Insight aggregator
-Merge sheet outputs into ranked insights.
+---
 
-### Layer 5: Content generator
-Create blog outline, blog draft, and video script.
+## Prompt files
 
-### Layer 6: Exporter
-Generate Excel, markdown, or other final formats.
+Prompts live in `prompts/` as `.md` files and are loaded from disk at runtime via `utils/prompt_loader.py`. Editing a prompt file takes effect on the next run — no code change needed.
 
-## 12) Naming conventions
+| File | Sheet |
+|------|-------|
+| `sheet_1_Use of Funds.md` | Use of funds allocation |
+| `sheet_2_Founder-Lens.md` | Founder background signals |
+| `sheet_3_Capital Quality.md` | Deal quality scoring (1–5 per criterion) |
+| `sheet_4_Sector Capital.md` | Sector-level capital flows |
+| `sheet_5_Structural Market.md` | Market structure analysis |
+| `sheet_6_Investor.md` | Investor intelligence |
 
-Use stable names for:
-- weekly batches,
-- sheet outputs,
-- insight objects,
-- blog topics,
-- script sections.
+---
 
-Example:
-- weekly_batch_2026_04_03
-- sheet_funding_analysis
-- insight_ranked_topics
-- blog_draft_v1
-- video_script_v1
+## CSV input format
 
-## 13) Default behavior when uncertain
+The parser (`ingestion/parser.py`) accepts flexible column aliases (case-insensitive):
 
-If the next step is unclear:
-1. inspect the existing project structure,
-2. infer the most likely intended workflow from nearby files,
-3. ask a focused question only if needed.
+| Field | Accepted column names |
+|-------|-----------------------|
+| Company | `company`, `company name`, `name` |
+| Deal size | `deal size`, `deal_size`, `deal size ($ mn)`, `amount` |
+| Stage | `stage`, `funding stage` |
+| Sector | `industry`, `sector` |
+| Investors | `investors`, `investor`, `investor names` |
+| Business model | `business model`, `model`, `b2b/b2c` |
 
-Do not make broad assumptions about the business logic.
+Only `company` is required. Delimiter is auto-detected (tab or comma).
 
-## 14) For this project specifically
+---
 
-Remember that the long-term plan is:
-- start with manual weekly input,
-- stabilize Excel analysis,
-- generate blogs from selected insights,
-- later add web extraction,
-- later automate the weekly publication cycle.
+## Output structure
 
-Optimize for a reliable MVP first.
+```
+output/weekly_batch_YYYY_MM_DD/
+  ├── normalized_batch.json
+  ├── aggregated_insights.json
+  ├── content_bundle.json
+  ├── state.json
+  ├── workbook_YYYY-MM-DD.xlsx
+  ├── sheets/
+  │   └── sheet_{1-6}_output.json
+  ├── briefs/
+  │   ├── topic_candidates.json   ← 5 blog briefs + 1 video brief
+  │   └── selected_briefs.json    ← after interactive review or auto-select
+  └── content/
+      ├── blog_*.md
+      └── video_script.md
+```
 
-## 15) What to ask for when needed
+---
 
-If necessary, ask for:
-- one sample weekly dataset,
-- one sheet prompt,
-- one example of a good Excel output,
-- one previous blog draft,
-- one example explainer-video topic.
+## Core constraints
 
-Prefer concrete examples over abstract descriptions.
+- **Never invent facts.** All agent outputs must be grounded in the provided source data. BriefingAgent outputs `ContentBrief` objects with `supporting_insights` references; Blog/Video agents may only draw from those references.
+- **Aggregator has no LLM call.** `AggregatorAgent` is pure Python scoring (`composite = 0.35·novelty + 0.40·evidence + 0.25·relevance`). Keep it that way.
+- **Video is mandatory.** `VideoScriptAgent` always runs; it is not optional.
+- **Do not modify pipeline files** when making changes to the web layer. `app/` is a thin wrapper — the pipeline under `agents/`, `pipeline/`, `ingestion/`, `exporters/` is the stable core.
+- **Out of scope until explicitly requested:** web scraping, scheduling, CMS publishing, direct video rendering, database persistence, auth.

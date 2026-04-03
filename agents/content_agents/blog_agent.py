@@ -22,7 +22,7 @@ from schemas.content_schemas import BlogPerspective, BlogSection
 from utils.console import print_agent_start
 
 
-_BLOG_SYSTEM_PROMPT = """You are a professional capital-markets and startup-ecosystem writer.
+_BLOG_SYSTEM_PROMPT = """You are a professional private-markets and startup-ecosystem writer.
 
 You write fact-based, analyst-grade blog posts for a specific target audience.
 
