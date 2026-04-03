@@ -13,3 +13,12 @@ venv/
 # Outputs
 output/
 uploads/
+
+
+
+
+.streamlit/
+__pycache__/
+*.pyc
+.env
+uploads/
