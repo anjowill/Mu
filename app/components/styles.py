@@ -20,9 +20,9 @@ def inject_css() -> None:
     [data-testid="stDecoration"] { display: none; }
     [data-testid="collapsedControl"] { display: none; }
 
-    /* ── Dark dashboard background ────────────────────────────────────────── */
+    /* ── Dashboard background — dark green-tinted ────────────────────────── */
     .stApp {
-        background-color: #111827;
+        background: linear-gradient(160deg, #0D1812 0%, #0F1F18 50%, #0B1A14 100%);
     }
     .block-container {
         padding-top: 0.75rem;
@@ -47,7 +47,7 @@ def inject_css() -> None:
 
     /* ── Tab navigation ───────────────────────────────────────────────────── */
     .stTabs [data-baseweb="tab-list"] {
-        background-color: #1E2740;
+        background-color: #162A20;
         border-radius: 10px;
         padding: 5px 6px;
         gap: 4px;
@@ -108,7 +108,7 @@ def inject_css() -> None:
     }
     .stButton > button:active { transform: translateY(0); }
     .stButton > button:disabled {
-        background: #1E2740 !important;
+        background: #162A20 !important;
         color: #4B5563 !important;
         cursor: not-allowed;
         transform: none;
@@ -118,7 +118,7 @@ def inject_css() -> None:
     /* ── Input fields ─────────────────────────────────────────────────────── */
     .stTextInput > div > div > input,
     .stNumberInput > div > div > input {
-        background-color: #1E2740 !important;
+        background-color: #162A20 !important;
         border: 1px solid rgba(45, 139, 111, 0.3) !important;
         border-radius: 8px !important;
         color: #F1F5F9 !important;
@@ -129,7 +129,7 @@ def inject_css() -> None:
         box-shadow: 0 0 0 2px rgba(45, 139, 111, 0.2) !important;
     }
     .stSelectbox > div > div {
-        background-color: #1E2740 !important;
+        background-color: #162A20 !important;
         border: 1px solid rgba(45, 139, 111, 0.3) !important;
         border-radius: 8px !important;
         color: #F1F5F9 !important;
@@ -137,14 +137,17 @@ def inject_css() -> None:
 
     /* ── Cards ────────────────────────────────────────────────────────────── */
     .srf-card {
-        background: #1C2333;
-        border: 1px solid rgba(45, 139, 111, 0.2);
+        background: linear-gradient(160deg, #162A20 0%, #1A3025 100%);
+        border: 1px solid rgba(45, 139, 111, 0.22);
         border-radius: 12px;
         padding: 20px 24px;
         margin-bottom: 14px;
-        transition: border-color 0.2s ease;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    .srf-card:hover { border-color: rgba(45, 139, 111, 0.42); }
+    .srf-card:hover {
+        border-color: rgba(45, 139, 111, 0.5);
+        box-shadow: 0 4px 20px rgba(27, 94, 75, 0.15);
+    }
     .srf-card-title {
         color: #F1F5F9;
         font-size: 1.02rem;
@@ -244,21 +247,21 @@ def inject_css() -> None:
 
     /* ── Expander ─────────────────────────────────────────────────────────── */
     [data-testid="stExpander"] {
-        background: #1C2333;
+        background: #162A20;
         border: 1px solid rgba(45, 139, 111, 0.18);
         border-radius: 10px;
     }
 
     /* ── File uploader ────────────────────────────────────────────────────── */
     [data-testid="stFileUploader"] {
-        background: #1C2333;
+        background: #162A20;
         border: 1px dashed rgba(45, 139, 111, 0.38) !important;
         border-radius: 10px;
     }
 
     /* ── Metric containers ────────────────────────────────────────────────── */
     [data-testid="metric-container"] {
-        background: #1C2333;
+        background: #162A20;
         border: 1px solid rgba(45, 139, 111, 0.18);
         border-radius: 10px;
         padding: 16px;
@@ -266,7 +269,7 @@ def inject_css() -> None:
 
     /* ── Date input ───────────────────────────────────────────────────────── */
     [data-testid="stDateInput"] input {
-        background-color: #1E2740 !important;
+        background-color: #162A20 !important;
         border: 1px solid rgba(45, 139, 111, 0.3) !important;
         border-radius: 8px !important;
         color: #F1F5F9 !important;

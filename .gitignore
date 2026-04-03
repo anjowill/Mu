@@ -10,15 +10,9 @@ build/
 .venv/
 venv/
 
-# Outputs
-output/
-uploads/
-
-
-
-
+# Streamlit
 .streamlit/
-__pycache__/
-*.pyc
-.env
+
+# Outputs / runtime data
+output/
 uploads/

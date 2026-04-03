@@ -6,7 +6,7 @@ Configure via .env:
     SMTP_PORT      e.g. 587
     SMTP_USER      sender email address
     SMTP_PASSWORD  sender email password or app password
-    ADMIN_EMAIL    recipient (default: wilson@srfcapital.studio)
+    ADMIN_EMAIL    recipient (default: wilson@srfcapital.studio — override via .env)
 
 If SMTP credentials are not configured, the request is still saved to the
 database and the error is printed to console — the flow does not break.

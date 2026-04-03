@@ -49,6 +49,7 @@ from app.auth.auth import logout, require_auth          # noqa: E402
 from app.components.styles import inject_css            # noqa: E402
 from app.database.db import init_db                     # noqa: E402
 from app.pages import grants_schemes, investor_database, weekly_analysis  # noqa: E402
+from app.pages import admin_panel                                          # noqa: E402
 
 _LOGO_PATH = Path(__file__).parent / "assets" / "srf_logo.png"
 API_BASE        = "http://localhost:8000"
@@ -112,11 +113,21 @@ st.markdown(
 
 # ── Tab navigation ─────────────────────────────────────────────────────────────
 
-tab_analysis, tab_investors, tab_grants = st.tabs([
-    "📊  Weekly Analysis",
-    "🏦  Investor Database",
-    "🏛  Grants & Schemes",
-])
+_is_admin = st.session_state.get("is_admin", False)
+
+if _is_admin:
+    tab_analysis, tab_investors, tab_grants, tab_admin = st.tabs([
+        "📊  Weekly Analysis",
+        "🏦  Investor Database",
+        "🏛  Grants & Schemes",
+        "⚙️  Admin",
+    ])
+else:
+    tab_analysis, tab_investors, tab_grants = st.tabs([
+        "📊  Weekly Analysis",
+        "🏦  Investor Database",
+        "🏛  Grants & Schemes",
+    ])
 
 with tab_analysis:
     weekly_analysis.render(API_BASE, REQUEST_TIMEOUT)
@@ -126,3 +137,7 @@ with tab_investors:
 
 with tab_grants:
     grants_schemes.render()
+
+if _is_admin:
+    with tab_admin:
+        admin_panel.render()
